@@ -36,6 +36,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):   # e.g. a cp1252 Windows pipe cannot print "█"
+            stream.reconfigure(errors="replace")
     settings = Settings.load()
     i18n.set_lang(args.lang or settings.lang or i18n.detect())
     if args.mode:
