@@ -10,7 +10,7 @@ album = titolo del mix, e per ogni traccia titolo, artista, remixer, etichetta, 
 ```
 ╭─────────╮
 │ ◉ ═══ ◉ │  mixtaper
-╰─────────╯  dal mix alla tracklist, traccia per traccia
+╰─────────╯  
 ```
 
 ## Come funziona
