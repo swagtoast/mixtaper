@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 build = ["pyinstaller>=6.10", "pillow>=10"]
+dev = ["pytest>=8"]
 
 [project.scripts]
 mixtaper = "mixtaper.cli:main"
