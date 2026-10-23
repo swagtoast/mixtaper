@@ -83,7 +83,7 @@ def make_icon() -> Path:
     return png   # PyInstaller converts it to .ico when Pillow is installed
 
 
-def pyinstaller(icon: Path, onefile: bool) -> None:
+def pyinstaller(icon: Path, onefile: bool, name: str = "mixtaper") -> None:
     staged = BUILD / "bin" / f"ffmpeg{EXE}"
     staged.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ffmpeg_binary(), staged)
@@ -92,7 +92,7 @@ def pyinstaller(icon: Path, onefile: bool) -> None:
     run([
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--console",
         "--onefile" if onefile else "--onedir",
-        "--name", "mixtaper",
+        "--name", name,
         "--distpath", DIST, "--workpath", BUILD / "pyi", "--specpath", BUILD,
         "--icon", icon,
         "--collect-submodules", "textual", "--collect-data", "textual",
@@ -150,10 +150,8 @@ def build_macos(icon: Path) -> Path:
 
 
 def build_windows(icon: Path) -> Path:
-    pyinstaller(icon, onefile=True)
+    pyinstaller(icon, onefile=True, name="Mixtaper")   # case-insensitive FS: name it right away
     exe = DIST / "Mixtaper.exe"
-    exe.unlink(missing_ok=True)
-    (DIST / "mixtaper.exe").rename(exe)
     out = DIST / f"Mixtaper-{__version__}-Windows.zip"
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(exe, "Mixtaper/Mixtaper.exe")
