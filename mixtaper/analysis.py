@@ -100,6 +100,37 @@ class Occurrence:
         d = self.duration
         return self.t0 + d / self.rate if d else None
 
+    def _anchor_cluster(self) -> list[tuple[float, Match]]:
+        """Hits whose implied t0 agree (within 1.5 s) with the largest number of other hits."""
+        t0s = [t - m.offset / m.rate for t, m in self.hits]
+        if len(t0s) == 1:
+            return list(self.hits)
+        best = max(range(len(t0s)), key=lambda i: sum(abs(t0s[i] - x) <= 1.5 for x in t0s))
+        group = [h for h, x in zip(self.hits, t0s) if abs(t0s[best] - x) <= 1.5]
+        return group if len(group) >= 2 else []
+
+    @property
+    def anchor(self) -> float | None:
+        """Reliable t0 (where the track enters), when its hits agree on it."""
+        group = self._anchor_cluster()
+        return statistics.median(t - m.offset / m.rate for t, m in group) if group else None
+
+    @property
+    def anchor_first(self) -> float:
+        group = self._anchor_cluster()
+        return group[0][0] if group else self.first
+
+    @property
+    def anchor_end(self) -> float | None:
+        group = self._anchor_cluster()
+        if not group:
+            return None
+        dur = next((m.duration for _, m in group if m.duration), None)
+        if not dur:
+            return None
+        rate = statistics.median(m.rate for _, m in group)
+        return statistics.median(t - m.offset / m.rate for t, m in group) + dur / rate
+
     @property
     def best(self) -> Match:
         keys = [m.key for _, m in self.hits]
@@ -428,9 +459,15 @@ class Analyzer:
             lo, hi = left + HALF / 2, right + WINDOW - HALF / 2
             ref_a, ref_b = (left, left + WINDOW), (right, right + WINDOW)
         oa, ob = a.occ, b.occ
+        if oa is not None and ob is not None and self.settings.cut_mode != "blend":
+            # Commercial mix CDs put the index where the incoming track enters: its t0.
+            b0 = ob.anchor
+            if b0 is not None and max(oa.last - 20, oa.first + MIN_TRACK) <= b0 <= ob.anchor_first + HALF:
+                return b0
+            a1 = oa.anchor_end
+            if a1 is not None and oa.last <= a1 <= ob.first + HALF:
+                return a1
         if ob is not None and lo < ob.t0 < hi:
-            if self.settings.cut_mode == "start" and oa is not None:
-                return novelty.snap_to_onset(self.pcm, ob.t0)
             if hi - ob.t0 > 2:
                 lo = ob.t0                      # the incoming track cannot lead before it starts
         if oa is not None and oa.end is not None and lo + 2 < oa.end < hi:
@@ -439,7 +476,22 @@ class Analyzer:
 
     def build_tracks(self) -> list[Track]:
         assert self.pcm is not None
-        slots = self._slots(self._clean())
+        dropped: set[int] = set()
+        for _ in range(5):
+            occs = [o for o in self._clean() if id(o.hits[0][1]) not in dropped]
+            kept = self._place(self._slots(occs))
+            # a lone recognition that ends up owning only a few seconds is a false positive:
+            # drop it and place the cuts again without it
+            ends = [k[0] for k in kept[1:]] + [self.duration]
+            bad = [k[1].occ for k, e in zip(kept, ends) if k[1].occ and len(k[1].occ.hits) == 1 and e - k[0] < 45]
+            if not bad or len(bad) == len(kept):
+                break
+            dropped |= {id(o.hits[0][1]) for o in bad}
+        tracks = [_track_from(slot, s) for s, slot in kept]
+        tracks[0].start = 0.0
+        return tracks
+
+    def _place(self, slots: list[Slot]) -> list[tuple[float, Slot]]:
         starts: list[tuple[float, Slot]] = [(0.0, slots[0])]
         for a, b in zip(slots, slots[1:]):
             starts.append((self._cut_between(a, b), b))
@@ -453,15 +505,20 @@ class Analyzer:
                     extra += [(t, Slot(None)) for t in novelty.split_points(self.pcm, s, e, k)]
         starts = sorted(starts + extra, key=lambda x: x[0])
 
-        tracks: list[Track] = []
-        last = -MIN_TRACK
+        kept: list[tuple[float, Slot]] = []
         for s, slot in starts:
-            if tracks and (s - last < MIN_TRACK or s > self.duration - MIN_TRACK):
+            if s > self.duration - MIN_TRACK and kept:
                 continue
-            tracks.append(_track_from(slot, s))
-            last = s
-        tracks[0].start = 0.0
-        return tracks
+            if kept and s - kept[-1][0] < MIN_TRACK:
+                if _strength(slot) > _strength(kept[-1][1]) and len(kept) > 1:
+                    kept[-1] = (s, slot)
+                continue
+            kept.append((s, slot))
+        return kept
+
+
+def _strength(slot: Slot) -> int:
+    return len(slot.occ.hits) if slot.occ else 0
 
 
 def _same_song(a: Occurrence, b: Occurrence) -> bool:

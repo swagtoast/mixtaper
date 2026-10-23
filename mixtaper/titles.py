@@ -20,7 +20,7 @@ _GENERIC = {
 _SUFFIX = re.compile(r"\s*[(\[]\s*([^()\[\]]+?)\s+(" + MIX_WORDS + r")\s*[)\]]\s*$", re.I)
 _DASH = re.compile(r"\s+[-–]\s+([^-–()\[\]]+?)\s+(" + MIX_WORDS + r")\s*$", re.I)
 _ENDS_WITH_WORD = re.compile(r"\b(" + MIX_WORDS + r")\s*$", re.I)
-_ORIGINAL_MIX = re.compile(r"\s*[(\[]\s*original( mix)?\s*[)\]]\s*$", re.I)
+_ORIGINAL_MIX = re.compile(r"\s*(?:[(\[]\s*(?:original( mix)?|mixed)\s*[)\]]|\s-\s*mixed)\s*$", re.I)
 
 
 def _is_generic(name: str) -> bool:

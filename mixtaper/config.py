@@ -40,8 +40,8 @@ class Settings:
     scan_mode: str = "balanced"   # fast | balanced | accurate
     out_format: str = "same"      # same | mp3 | flac | aiff | m4a
     out_dir: str = ""             # "" = next to the input file
-    cut_mode: str = "smart"       # smart | start
-    compilation: bool = True
+    cut_mode: str = "start"       # start: where the next track enters (like mix CDs) | blend: mid hand-over
+    compilation: bool = False
     acr_host: str = ""
     acr_key: str = ""
     acr_secret: str = ""

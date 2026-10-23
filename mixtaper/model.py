@@ -49,7 +49,7 @@ class Album:
     year: str = ""
     genre: str = ""
     cover: str = ""             # path to the cover image
-    compilation: bool = True
+    compilation: bool = False
 
 
 @dataclass
