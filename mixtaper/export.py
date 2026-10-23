@@ -69,13 +69,22 @@ def _codec_args(fmt: str, info: MediaInfo) -> list[str]:
     if fmt == "m4a":
         if info.lossless:
             return ["-c:a", "alac", "-sample_fmt", "s32p" if hi_res else "s16p"]
-        enc = "aac_at" if ffmpeg.has_encoder("aac_at") else "aac"
-        return ["-c:a", enc, "-b:a", "256k"]
+        # ffmpeg's own AAC encoder records priming/padding exactly (gapless); AudioToolbox does not
+        return ["-c:a", "aac", "-b:a", _lossy_rate(info, (128, 160, 192, 256), 1.25)]
     # mp3
-    args = ["-c:a", "libmp3lame", "-b:a", "320k"]
+    rate = "320k" if info.lossless else _lossy_rate(info, (192, 224, 256, 320), 1.25)
+    args = ["-c:a", "libmp3lame", "-b:a", rate]
     if info.sample_rate > 48000:
         args += ["-ar", "48000" if info.sample_rate % 48000 == 0 else "44100"]
     return args
+
+
+def _lossy_rate(info: MediaInfo, ladder: tuple[int, ...], factor: float) -> str:
+    """Lossless sources get the top rate; lossy ones a rate at least as good as the source."""
+    if info.lossless or not info.bitrate:
+        return f"{ladder[-1]}k"
+    want = info.bitrate / 1000 * factor
+    return f"{next((r for r in ladder if r >= want), ladder[-1])}k"
 
 
 def track_names(s: Session, ext: str) -> list[str]:
@@ -169,9 +178,11 @@ async def _cut_aac(src: str, sr: int, starts: list[int], dests: list[Path], prog
 async def _encode(src: str, info: MediaInfo, fmt: str, starts: list[int], dests: list[Path], dur: float,
                   progress: Progress) -> None:
     n = len(dests)
-    labels = "".join(f"[o{i}]" for i in range(n))
     if n > 1:
-        graph = f"[0:a:0]asegment=samples={'|'.join(str(x) for x in starts[1:])}{labels}"
+        segs = "".join(f"[s{i}]" for i in range(n))
+        graph = f"[0:a:0]asegment=samples={'|'.join(str(x) for x in starts[1:])}{segs}"
+        # every piece must start at timestamp 0, or the MP4 muxer mis-handles the AAC priming
+        graph += "".join(f";[s{i}]asetpts=PTS-STARTPTS[o{i}]" for i in range(n))
     else:
         graph = "[0:a:0]anull[o0]"
     args = ["-y", "-i", src, "-filter_complex", graph]

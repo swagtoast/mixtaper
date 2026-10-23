@@ -16,6 +16,12 @@ _GENERIC = {
     "acoustic", "the", "a", "edit", "mix", "version", "special", "alternate", "alt",
     "bonus", "deep", "dj", "lp", "ep", "beats", "tool", "mixed", "unmixed", "continuous",
     "accapella", "acapella", "a cappella", "reprise", "intro", "outro", "vip",
+    "soundtrack", "film", "movie", "video", "tv", "dance", "disco", "house", "techno", "ambient",
+    "chill", "lounge", "acid", "piano", "strings", "orchestral", "unplugged", "alternative",
+    "promo", "uk", "us", "french", "spanish", "italian", "english", "drum", "bass", "jazz",
+    "funk", "soul", "latin", "tribal", "late", "night", "after", "hours", "afterhours",
+    "morning", "midnight", "sunrise", "sunset", "summer", "winter", "re-edit", "rework", "dubstep",
+    "breaks", "garage", "electro", "trance", "radio-edit", "re-mastered", "anniversary", "demo",
 }
 _SUFFIX = re.compile(r"\s*[(\[]\s*([^()\[\]]+?)\s+(" + MIX_WORDS + r")\s*[)\]]\s*$", re.I)
 _DASH = re.compile(r"\s+[-–]\s+([^-–()\[\]]+?)\s+(" + MIX_WORDS + r")\s*$", re.I)
@@ -95,6 +101,7 @@ _WIN_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
 
 def safe_filename(name: str, maxlen: int = 140) -> str:
     name = unicodedata.normalize("NFC", name or "")
+    name = re.sub(r"\s*:\s+", " - ", name)
     name = re.sub(r"[/\\:]", "_", name)
     name = re.sub(r'[*?"<>|\x00-\x1f]', "", name)
     name = re.sub(r"\s+", " ", name).strip().rstrip(". ")

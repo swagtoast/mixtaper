@@ -29,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--headless", action="store_true", help="no UI: scan, then export")
     ap.add_argument("--scan-only", action="store_true", help="no UI: scan and print the tracklist")
     ap.add_argument("--lang", choices=["it", "en"])
+    ap.add_argument("--selftest", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--version", action="version", version=f"mixtaper {__version__}")
     return ap
 
@@ -41,6 +42,8 @@ def main(argv: list[str] | None = None) -> None:
         settings.scan_mode = args.mode
     if args.format:
         settings.out_format = args.format
+    if args.selftest:
+        sys.exit(asyncio.run(_selftest()))
     if args.headless or args.scan_only:
         if not args.file:
             sys.exit("mixtaper: a file is required in headless mode")
@@ -48,6 +51,23 @@ def main(argv: list[str] | None = None) -> None:
     from .tui.app import run
 
     run(settings, args)
+
+
+async def _selftest() -> int:
+    """Start the UI headless and check ffmpeg / recognition engine are usable (for packaged builds)."""
+    from shazamio_core import Recognizer  # noqa: F401  (native extension present)
+
+    from . import ffmpeg
+    from .tui.app import MixtaperApp
+
+    exe = ffmpeg.ffmpeg_exe()
+    app = MixtaperApp(Settings())
+    async with app.run_test(size=(120, 36)) as pilot:
+        await pilot.pause(0.3)
+        screen = type(app.screen).__name__
+    ok = screen == "SetupScreen" and ffmpeg.has_encoder("libmp3lame") and ffmpeg.has_encoder("flac")
+    print(f"ffmpeg: {exe}\nscreen: {screen}\n{'OK' if ok else 'FAIL'}")
+    return 0 if ok else 1
 
 
 def _session_for(args: argparse.Namespace, settings: Settings):

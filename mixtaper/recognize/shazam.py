@@ -83,7 +83,7 @@ class ShazamClient:
         async with self._lock:
             wait = self._next_slot - time.monotonic()
             if wait > 0:
-                if wait > 2 and self.on_throttle:
+                if wait > 8 and self.on_throttle:   # only real back-offs, not the normal pacing
                     self.on_throttle(wait)
                 await asyncio.sleep(wait)
             self._next_slot = time.monotonic() + self._interval * random.uniform(0.95, 1.1)

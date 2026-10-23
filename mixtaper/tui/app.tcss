@@ -1,0 +1,173 @@
+Screen {
+    background: $background;
+    color: $foreground;
+}
+
+.hidden { display: none; }
+
+#logo {
+    color: $accent;
+    padding: 1 2 0 2;
+    height: auto;
+}
+
+.header {
+    padding: 0 1;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.section {
+    color: $accent;
+    text-style: bold;
+    margin: 1 0 0 0;
+}
+
+.row {
+    height: auto;
+    margin: 0;
+}
+
+.lbl {
+    width: 18;
+    padding: 1 1 0 0;
+    color: $text-muted;
+}
+
+.lbl2 {
+    width: auto;
+    padding: 1 1 0 2;
+    color: $text-muted;
+}
+
+Input {
+    width: 1fr;
+    border: tall $panel;
+    background: $surface;
+}
+
+Input:focus { border: tall $accent; }
+
+Input.short { width: 12; }
+
+Select { width: 1fr; }
+
+Button {
+    min-width: 12;
+    border: none;
+    height: 3;
+    margin: 0 1 0 0;
+    background: $panel;
+}
+
+Button.small { min-width: 10; margin-left: 1; }
+
+Button.-primary {
+    background: $accent;
+    color: #0b0b0b;
+    text-style: bold;
+}
+
+Button:focus { text-style: bold underline; }
+Button.-primary:focus { background: $accent-lighten-1; }
+
+.info {
+    padding: 0 0 0 18;
+    height: auto;
+    color: $foreground;
+}
+
+.hint, .muted {
+    color: $text-muted;
+    height: auto;
+}
+
+.hint { margin-top: 1; }
+
+#setup { padding: 0 2; }
+
+#actions {
+    height: auto;
+    margin-top: 2;
+}
+
+.buttons {
+    height: auto;
+    margin-top: 1;
+}
+
+/* analysis */
+#bar { margin: 0 1; }
+#status { padding: 0 1; color: $text-muted; height: auto; }
+#timeline { padding: 1 1; height: 3; }
+#log {
+    margin: 0 1;
+    border: round $panel;
+    background: $background;
+    height: 1fr;
+}
+
+/* editor */
+#table {
+    height: 1fr;
+    margin: 0 1;
+    border: round $panel;
+    background: $background;
+}
+
+#table:focus { border: round $accent; }
+
+DataTable > .datatable--cursor {
+    background: $accent 35%;
+    color: $foreground;
+}
+
+DataTable > .datatable--header {
+    color: $accent;
+    background: $background;
+    text-style: bold;
+}
+
+#form {
+    height: auto;
+    margin: 1 1 0 1;
+}
+
+.fcol { height: auto; margin-right: 1; }
+.fcol Label { color: $text-muted; }
+.fstart { width: 16; }
+.fwide { width: 2fr; }
+.fmid { width: 1fr; }
+
+#form_hint { padding: 0 1; margin: 0; }
+#keys { padding: 1 1 0 1; height: auto; dock: bottom; }
+
+/* export */
+#export { padding: 1 2; }
+
+/* dialogs */
+ModalScreen {
+    align: center middle;
+    background: $background 70%;
+}
+
+.dialog {
+    width: 84;
+    height: auto;
+    max-height: 90%;
+    padding: 1 2;
+    border: round $accent;
+    background: $surface;
+}
+
+.dialog.wide { width: 100; height: 80%; }
+.dialog.small { width: 60; }
+
+.dialog-title {
+    color: $accent;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.dialog DirectoryTree { height: 1fr; border: round $panel; background: $background; }
+.dialog TextArea { height: 1fr; border: round $panel; }
