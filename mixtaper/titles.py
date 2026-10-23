@@ -54,9 +54,11 @@ def full_title(title: str, remixer: str) -> str:
     """Compose the iTunes-style title: 'Song (Y Remix)' / 'Song (feat. X) [Y Remix]'."""
     title = (title or "").strip()
     remixer = (remixer or "").strip()
-    if not remixer or remixer.lower() in title.lower():
+    if not remixer:
         return title
     label = remixer if _ENDS_WITH_WORD.search(remixer) else f"{remixer} Remix"
+    if label.lower() in title.lower():
+        return title
     if title.endswith(")"):
         return f"{title} [{label}]"
     return f"{title} ({label})"
@@ -79,6 +81,13 @@ def _fold(s: str) -> str:
 def identity(artist: str, title: str) -> str:
     """A loose key used to decide whether two recognitions are the same recording."""
     return f"{_fold(artist)}|{_fold(title)}"
+
+
+def song_identity(artist: str, title: str) -> str:
+    """Like identity() but ignoring the version: 'Song (12" Mix)' == 'Song (Radio Edit)'."""
+    base = re.sub(r"[(\[][^()\[\]]*[)\]]", " ", title or "")
+    base = re.split(r"\s+[-–]\s+", base)[0]
+    return identity(artist, base)
 
 
 _WIN_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
