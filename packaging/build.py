@@ -17,12 +17,16 @@ import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DIST = ROOT / "dist"
-BUILD = ROOT / "build"
+OUTPUT = ROOT / "dist"
+# Build and sign outside the project: synced folders (iCloud Drive, Dropbox…) keep adding
+# extended attributes that make codesign refuse the bundle. Results are copied to OUTPUT.
+BUILD = Path(tempfile.gettempdir()) / "mixtaper-build"
+DIST = BUILD / "dist"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "packaging"))
 
@@ -131,6 +135,7 @@ def build_macos(icon: Path) -> Path:
             "LSUIElement": True,
             "NSHighResolutionCapable": True,
         }, f)
+    run(["xattr", "-cr", app])
     run(["codesign", "--force", "--deep", "--sign", "-", app])
     command = DIST / "Mixtaper.command"
     command.write_text(COMMAND)
@@ -166,11 +171,33 @@ def build_linux(icon: Path) -> Path:
     return out
 
 
+def publish() -> None:
+    """Copy the finished artifacts from the temporary build folder to dist/."""
+    OUTPUT.mkdir(exist_ok=True)
+    for item in DIST.iterdir():
+        if item.name == "mixtaper" and item.is_dir():
+            continue
+        target = OUTPUT / item.name
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
+        if item.is_dir():
+            if SYSTEM == "Darwin":
+                run(["ditto", item, target])    # keeps the bundle's signature intact
+            else:
+                shutil.copytree(item, target)
+        else:
+            shutil.copy2(item, target)
+
+
 def main() -> None:
-    DIST.mkdir(exist_ok=True)
+    shutil.rmtree(DIST, ignore_errors=True)
+    DIST.mkdir(parents=True, exist_ok=True)
     icon = make_icon()
     out = {"Darwin": build_macos, "Windows": build_windows}.get(SYSTEM, build_linux)(icon)
-    print(f"\nbuilt {out} ({out.stat().st_size / 1e6:.1f} MB)")
+    publish()
+    print(f"\nbuilt {OUTPUT / out.name} ({out.stat().st_size / 1e6:.1f} MB)")
 
 
 if __name__ == "__main__":
