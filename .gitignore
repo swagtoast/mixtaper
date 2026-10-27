@@ -9,3 +9,4 @@ dist/
 /out/
 *.egg-info/
 /Mix di prova/
+/tests/udonman_test/

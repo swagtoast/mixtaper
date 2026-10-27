@@ -388,6 +388,7 @@ class EditorScreen(Screen):
     BINDINGS = [
         Binding("enter", "edit", show=False),
         Binding("space", "play", show=False),
+        Binding("p", "play_transition", show=False),
         Binding("s", "split", show=False),
         Binding("m", "merge", show=False),
         Binding("delete,backspace", "delete", show=False),
@@ -414,6 +415,7 @@ class EditorScreen(Screen):
         self.sel = 0
         self._loading = False
         self._asked_album = False
+        self._start_edit: int | None = None
         self.history = History(5)
 
     @property
@@ -432,7 +434,7 @@ class EditorScreen(Screen):
                     yield Label(t(f"f.{f}"))
                     yield Input(id=f"f_{f}")
         yield Static(t("ed.form_hint"), classes="hint", id="form_hint")
-        yield Static(key_bar([("↵", "k.edit"), ("space", "k.play"), (",.<>", "k.nudge"), ("s", "k.split"),
+        yield Static(key_bar([("↵", "k.edit"), ("space", "k.play"), ("p", "k.transition"), (",.<>", "k.nudge"), ("s", "k.split"),
                               ("m", "k.merge"), ("del", "k.delete"), ("r", "k.rescan"), ("a", "k.album"),
                               ("t", "k.import"), ("e", "k.export"), ("ctrl+z", "k.undo"), ("?", "k.help")]), id="keys")
 
@@ -545,9 +547,22 @@ class EditorScreen(Screen):
         self._header()
         self.app.autosave(delay=True)
 
+    @on(Input.Changed, "#f_start")
+    def _start_typed(self, event: Input.Changed) -> None:
+        if event.input.has_focus and not self._loading:
+            self._start_edit = self.sel        # the track whose start is being typed
+
+    @on(Input.Blurred, "#f_start")
+    def _start_blurred(self, event: Input.Blurred) -> None:
+        # a time typed and left without Enter must not be lost, nor land on another row
+        i, self._start_edit = self._start_edit, None
+        if i is not None and i < len(self.session.tracks):
+            self._set_start(event.value, refocus=False, i=i)
+
     @on(Input.Submitted)
     def _submitted(self, event: Input.Submitted) -> None:
         if event.input.id == "f_start":
+            self._start_edit = None
             self._set_start(event.value)
             return
         order = ["f_artist", "f_title", "f_remixer", "f_label"]
@@ -556,29 +571,39 @@ class EditorScreen(Screen):
         else:
             self.action_focus_table()
 
-    def _set_start(self, text: str) -> None:
-        if self.sel == 0:
-            self.app.notify(t("ed.first_cut"), severity="warning")
-            self.load_form()
-            return
+    def _set_start(self, text: str, refocus: bool = True, i: int | None = None) -> None:
+        i = self.sel if i is None else i
         value = parse_time(text)
         s = self.session
-        lo = s.tracks[self.sel - 1].start + 1
-        hi = s.end_of(self.sel) - 1
+        if value is not None and abs(value - s.tracks[i].start) < 0.0005:
+            if refocus:
+                self.action_focus_table()
+            return
+        if i == 0:
+            self.app.notify(t("ed.first_cut"), severity="warning")
+            if i == self.sel:
+                self.load_form()
+            return
+        lo = s.tracks[i - 1].start + 1
+        hi = s.end_of(i) - 1
         if value is None or not lo <= value <= hi:
             self.app.notify(t("ed.bad_time"), severity="warning")
-            self.load_form()
+            if i == self.sel:
+                self.load_form()
             return
-        self.history.record(s, self.sel, "op.move")
-        s.tracks[self.sel].start = value
-        self._after_move()
-        self.action_focus_table()
+        self.history.record(s, i, "op.move")
+        s.tracks[i].start = value
+        self._after_move(i)
+        if refocus:
+            self.action_focus_table()
 
-    def _after_move(self) -> None:
-        for i in (self.sel - 1, self.sel):
-            if 0 <= i < len(self.session.tracks):
-                self._update_row(i)
-        self.load_form()
+    def _after_move(self, i: int | None = None) -> None:
+        i = self.sel if i is None else i
+        for j in (i - 1, i):
+            if 0 <= j < len(self.session.tracks):
+                self._update_row(j)
+        if i == self.sel:
+            self.load_form()
         self.app.autosave()
 
     def action_focus_table(self) -> None:
@@ -588,9 +613,17 @@ class EditorScreen(Screen):
         self.query_one("#f_artist").focus()
 
     def action_play(self) -> None:
+        """Play the selected track from its cut, exactly as its exported file will begin."""
         tr = self.session.tracks[self.sel]
-        start = max(0.0, tr.start - 6.0)
-        self._play(start, 12.0 if self.sel else 10.0, tr.start if self.sel else None)
+        self._play(tr.start, 10.0, None)
+
+    def action_play_transition(self) -> None:
+        """Play across the cut: 6 s of the previous track, a tick on the cut, 4 s after it."""
+        tr = self.session.tracks[self.sel]
+        if self.sel == 0:
+            self._play(0.0, 10.0, None)
+        else:
+            self._play(tr.start - 6.0, 10.0, tr.start)
 
     @work(thread=True, exclusive=True, group="play")
     def _play(self, start: float, length: float, tick: float | None) -> None:

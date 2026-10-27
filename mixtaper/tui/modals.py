@@ -286,6 +286,7 @@ class ConfirmModal(_Modal):
 HELP = [
     ("↑ ↓", "k.edit", "enter"),
     ("space", "k.play", ""),
+    ("p", "k.transition", "−6 s … tic … +4 s"),
     (", .  < >", "k.nudge", "±0.25s  ±2s"),
     ("s", "k.split", ""),
     ("m", "k.merge", ""),
