@@ -17,6 +17,7 @@ from textual.widgets import Button, DataTable, Input, Label, ProgressBar, RichLo
 from .. import ffmpeg
 from ..analysis import Analyzer
 from ..export import export, make_plan
+from ..history import History
 from ..i18n import t
 from ..media import AUDIO_EXTS, IMAGE_EXTS, probe
 from ..model import Album, Session, Track, fmt_time, parse_time
@@ -400,6 +401,7 @@ class EditorScreen(Screen):
         Binding("t", "import", show=False),
         Binding("e", "export", show=False),
         Binding("ctrl+s", "save", show=False),
+        Binding("ctrl+z,super+z", "undo", show=False),
         Binding("escape", "focus_table", show=False),
         Binding("question_mark", "help", show=False),
         Binding("f2", "app.settings", show=False),
@@ -412,6 +414,7 @@ class EditorScreen(Screen):
         self.sel = 0
         self._loading = False
         self._asked_album = False
+        self.history = History(5)
 
     @property
     def session(self) -> Session:
@@ -431,7 +434,7 @@ class EditorScreen(Screen):
         yield Static(t("ed.form_hint"), classes="hint", id="form_hint")
         yield Static(key_bar([("↵", "k.edit"), ("space", "k.play"), (",.<>", "k.nudge"), ("s", "k.split"),
                               ("m", "k.merge"), ("del", "k.delete"), ("r", "k.rescan"), ("a", "k.album"),
-                              ("t", "k.import"), ("e", "k.export"), ("?", "k.help")]), id="keys")
+                              ("t", "k.import"), ("e", "k.export"), ("ctrl+z", "k.undo"), ("?", "k.help")]), id="keys")
 
     def on_mount(self) -> None:
         self.populate()
@@ -517,6 +520,8 @@ class EditorScreen(Screen):
 
     @on(DataTable.RowHighlighted)
     def _row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if event.cursor_row != self.sel:
+            self.history.close_group()
         self.sel = event.cursor_row
         self.load_form()
 
@@ -524,10 +529,15 @@ class EditorScreen(Screen):
     def _field_changed(self, event: Input.Changed) -> None:
         if self._loading or not event.input.id or not event.input.id.startswith("f_"):
             return
+        if not event.input.has_focus:   # programmatic refresh, delivered late: not a user edit
+            return
         field = event.input.id[2:]
         if field not in FIELDS:
             return
         tr = self.session.tracks[self.sel]
+        if getattr(tr, field) == event.value:
+            return
+        self.history.record(self.session, self.sel, "op.edit", ("field", self.sel, field))
         setattr(tr, field, event.value)
         if tr.source == "id" and not tr.is_id:
             tr.source = "manual"
@@ -559,6 +569,7 @@ class EditorScreen(Screen):
             self.app.notify(t("ed.bad_time"), severity="warning")
             self.load_form()
             return
+        self.history.record(s, self.sel, "op.move")
         s.tracks[self.sel].start = value
         self._after_move()
         self.action_focus_table()
@@ -593,8 +604,12 @@ class EditorScreen(Screen):
             return
         s = self.session
         tr = s.tracks[self.sel]
-        new = min(s.end_of(self.sel) - 1, max(s.tracks[self.sel - 1].start + 1, tr.start + delta))
-        tr.start = round(new, 3)
+        new = round(min(s.end_of(self.sel) - 1, max(s.tracks[self.sel - 1].start + 1, tr.start + delta)), 3)
+        if new == tr.start:
+            return
+        # repeated , . < > on the same cut are one undo step
+        self.history.record(s, self.sel, "op.move", ("move", self.sel))
+        tr.start = new
         self._after_move()
 
     def action_split(self) -> None:
@@ -608,6 +623,7 @@ class EditorScreen(Screen):
             if value is None or not 1 <= value <= s.duration - 1:
                 self.app.notify(t("ed.bad_time"), severity="warning")
                 return
+            self.history.record(s, self.sel, "op.split")
             s.tracks.append(Track(start=value))
             s.normalize()
             self.refresh_table(select=s.index_at(value))
@@ -618,6 +634,7 @@ class EditorScreen(Screen):
     def action_merge(self) -> None:
         s = self.session
         if self.sel + 1 < len(s.tracks):
+            self.history.record(s, self.sel, "op.merge")
             del s.tracks[self.sel + 1]
             self.refresh_table()
             self.app.autosave()
@@ -626,11 +643,13 @@ class EditorScreen(Screen):
         if self.sel == 0:
             self.app.notify(t("ed.first_cut"), severity="warning")
             return
+        self.history.record(self.session, self.sel, "op.delete")
         del self.session.tracks[self.sel]
         self.refresh_table(select=self.sel - 1)
         self.app.autosave()
 
     def action_mark_id(self) -> None:
+        self.history.record(self.session, self.sel, "op.id")
         self.session.tracks[self.sel].set_unknown()
         self._update_row(self.sel)
         self.load_form()
@@ -653,6 +672,7 @@ class EditorScreen(Screen):
         if not m:
             self.app.notify(t("ed.rescan_none"))
             return
+        self.history.record(s, i, "op.rescan")
         tr = s.tracks[i]
         tr.title, tr.remixer = split_remix(m.title)
         tr.artist, tr.label, tr.isrc, tr.release = m.artist, m.label, m.isrc, m.album
@@ -669,7 +689,8 @@ class EditorScreen(Screen):
 
     def action_album(self) -> None:
         def done(album: Album | None) -> None:
-            if album:
+            if album and album != self.session.album:
+                self.history.record(self.session, self.sel, "op.album")
                 self.session.album = album
                 self._header()
                 self.app.autosave()
@@ -684,6 +705,7 @@ class EditorScreen(Screen):
             if not entries:
                 self.app.notify(t("import.empty"), severity="warning")
                 return
+            self.history.record(self.session, self.sel, "op.import")
             apply_entries(self.session, entries)
             self.refresh_table(select=0)
             self.app.autosave()
@@ -694,7 +716,8 @@ class EditorScreen(Screen):
     def action_export(self) -> None:
         if not (self.session.album.artist and self.session.album.title):
             def done(album: Album | None) -> None:
-                if album:
+                if album and album != self.session.album:
+                    self.history.record(self.session, self.sel, "op.album")
                     self.session.album = album
                     self._header()
                     self.app.autosave()
@@ -703,6 +726,16 @@ class EditorScreen(Screen):
             self.app.push_screen(AlbumModal(self.session.album), done)
             return
         self.app.push_screen(ExportScreen())
+
+    def action_undo(self) -> None:
+        snap = self.history.undo(self.session)
+        if snap is None:
+            self.app.notify(t("ed.nothing_to_undo"))
+            return
+        self.refresh_table(select=snap.sel)
+        self.history.close_group()
+        self.app.autosave()
+        self.app.notify(t("ed.undone", what=t(snap.what)))
 
     def action_save(self) -> None:
         path = self.app.autosave()

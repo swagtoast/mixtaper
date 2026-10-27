@@ -295,6 +295,7 @@ HELP = [
     ("a", "k.album", ""),
     ("t", "k.import", ""),
     ("e", "k.export", ""),
+    ("ctrl+z / ⌘z", "k.undo", "max 5"),
     ("ctrl+s", "k.save", ""),
     ("f2", "k.settings", ""),
     ("ctrl+l", "k.lang", ""),
