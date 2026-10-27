@@ -12,7 +12,11 @@ from mixtaper.model import fmt_time
 
 
 def gold_truth(folder: str) -> list[dict]:
-    """Cut points of an already split release: cumulative track lengths."""
+    """Cut points of an already split release (cumulative track lengths) or of a session file."""
+    if folder.endswith(".json"):
+        tracks = json.load(open(folder))["tracks"]
+        return [{"name": f"{t['artist']} - {t['title']}", "fade_start": t["start"], "fade_end": t["start"]}
+                for t in tracks]
     import glob
     import mutagen
     out, pos = [], 0.0
