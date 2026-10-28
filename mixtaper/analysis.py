@@ -461,9 +461,11 @@ class Analyzer:
         oa, ob = a.occ, b.occ
         if oa is not None and ob is not None and self.settings.cut_mode != "blend":
             # Commercial mix CDs put the index where the incoming track enters: its t0.
+            # The incoming track may start inside its first recognised window (Shazam then
+            # reports a negative offset), so b0 may fall anywhere in that window.
             b0 = ob.anchor
-            if b0 is not None and max(oa.last - 20, oa.first + MIN_TRACK) <= b0 <= ob.anchor_first + HALF:
-                return b0
+            if b0 is not None and max(oa.last - 20, oa.first + MIN_TRACK) <= b0 <= ob.anchor_first + WINDOW - 2:
+                return novelty.first_attack(self.pcm, b0)
             a1 = oa.anchor_end
             if a1 is not None and oa.last <= a1 <= ob.first + HALF:
                 return a1

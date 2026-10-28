@@ -78,6 +78,34 @@ def snap_to_onset(pcm: np.ndarray, t: float, radius: float = 0.35) -> float:
     return float(centers[j] - (n_fft / 2) / SR + 0.004)
 
 
+def first_attack(pcm: np.ndarray, t: float, max_delay: float = 1.5) -> float:
+    """The first clear attack of a track whose recording starts at t (within max_delay).
+
+    Recordings usually open with a fraction of a second of silence before the first note;
+    in a mix the previous track's last note rings there. Returns t when nothing stands out.
+    """
+    n_fft, hop = 1024, 128
+    a = max(0, int((t - 1.0) * SR) - n_fft)
+    b = min(len(pcm), int((t + max_delay) * SR) + n_fft)
+    x = np.asarray(pcm[a:b], dtype=np.float32) / 32768.0
+    n = 1 + (len(x) - n_fft) // hop
+    if n < 8:
+        return t
+    idx = np.arange(n_fft)[None, :] + hop * np.arange(n)[:, None]
+    level = np.log10(((x[idx] * np.hanning(n_fft).astype(np.float32)) ** 2).sum(1) + 1e-9)
+    rise = np.diff(level)
+    times = (a + np.arange(1, n) * hop + n_fft / 2) / SR
+    before = np.abs(rise[(times >= t - 1.0) & (times < t)])
+    window = (times >= t - 0.05) & (times <= t + max_delay)
+    if not window.any() or not len(before):
+        return t
+    # a note starting: level jumps well above the usual frame-to-frame wobble (>= 1.5 dB per 8 ms)
+    strong = window & (rise > max(0.15, 8 * np.median(before))) & (rise >= 0.5 * rise[window].max())
+    if not strong.any():
+        return t
+    return max(t, float(times[np.flatnonzero(strong)[0]]))
+
+
 def find_cut(pcm: np.ndarray, lo: float, hi: float) -> float:
     """Best cut point in [lo, hi] (seconds)."""
     if hi < lo:
