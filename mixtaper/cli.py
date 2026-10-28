@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, i18n
+from . import build_info, i18n
 from .config import Settings
 from .i18n import t
 
@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--scan-only", action="store_true", help="no UI: scan and print the tracklist")
     ap.add_argument("--lang", choices=["it", "en"])
     ap.add_argument("--selftest", action="store_true", help=argparse.SUPPRESS)
-    ap.add_argument("--version", action="version", version=f"mixtaper {__version__}")
+    ap.add_argument("--version", action="version", version=f"mixtaper {build_info()}")
     return ap
 
 

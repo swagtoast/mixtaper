@@ -14,7 +14,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Input, Label, ProgressBar, RichLog, Select, Static
 
-from .. import ffmpeg
+from .. import build_info, ffmpeg
 from ..analysis import Analyzer
 from ..export import export, make_plan
 from ..history import History
@@ -49,7 +49,7 @@ class SetupScreen(Screen):
 
     def compose(self) -> ComposeResult:
         d = self.app.draft
-        yield Static(LOGO.format(tagline=t("tagline")), id="logo")
+        yield Static(LOGO.format(tagline=t("tagline"), build=build_info()), id="logo")
         with VerticalScroll(id="setup"):
             yield Static(t("sec.mix"), classes="section")
             with Horizontal(classes="row"):

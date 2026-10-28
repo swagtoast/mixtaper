@@ -19,6 +19,7 @@ import sys
 import tarfile
 import tempfile
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -93,6 +94,9 @@ def pyinstaller(icon: Path, onefile: bool, name: str = "mixtaper") -> None:
     shutil.copy2(ffmpeg_binary(), staged)
     staged.chmod(staged.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     sep = os.pathsep
+    stamp = BUILD / "build.txt"     # shown next to the logo, so a stale copy is easy to spot
+    commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    stamp.write_text(" · ".join(x for x in (datetime.now().strftime("%Y-%m-%d %H:%M"), commit) if x), "utf-8")
     run([
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--console",
         "--onefile" if onefile else "--onedir",
@@ -102,6 +106,7 @@ def pyinstaller(icon: Path, onefile: bool, name: str = "mixtaper") -> None:
         "--collect-submodules", "textual", "--collect-data", "textual",
         "--collect-submodules", "rich",
         "--add-data", f"{ROOT / 'mixtaper' / 'tui' / 'app.tcss'}{sep}mixtaper/tui",
+        "--add-data", f"{stamp}{sep}mixtaper",
         "--add-binary", f"{staged}{sep}bin",
         "--exclude-module", "imageio_ffmpeg",
         "--exclude-module", "tkinter",

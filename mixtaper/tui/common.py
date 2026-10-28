@@ -14,7 +14,8 @@ from ..i18n import t
 LOGO = (
     "╭─────────╮\n"
     "│ ◉ ═══ ◉ │  [b]mixtaper[/b]\n"
-    "╰─────────╯  [dim]{tagline}[/dim]"
+    "╰─────────╯  [dim]{tagline}[/dim]\n"
+    "             [dim]{build}[/dim]"
 )
 
 PALETTE = ["#ff7a1a", "#4fc1ff", "#c792ea", "#7bd88f", "#ffcb6b", "#f78c6c", "#89ddff", "#ff5370",
